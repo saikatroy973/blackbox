@@ -141,6 +141,20 @@ func (s *Span) SetAttribute(key string, value any) {
 	s.s.SetAttribute(key, value)
 }
 
+// TraceID returns the span's trace ID.
+func (s *Span) TraceID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.s.TraceID
+}
+
+// SpanID returns the span's ID.
+func (s *Span) SpanID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.s.SpanID
+}
+
 // SetInput records the span's input payload. Raw JSON and []byte values
 // are recorded as-is; anything else is JSON-marshaled.
 func (s *Span) SetInput(v any) error {

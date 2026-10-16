@@ -36,6 +36,18 @@ curl localhost:8080/healthz   # ok
 curl localhost:8080/          # {"name":"blackbox","version":"dev",...}
 ```
 
+In another terminal, run the demo research agent (no API keys needed — it uses a deterministic mock LLM):
+
+```sh
+./bin/demoagent
+# Q: What is the capital of France and its population?
+# A: Based on my research: Paris is the capital of France. ...
+#   steps=2 trace=a3cb0c14ffee54192545006473606e2d
+```
+
+Every run lands as a trace in the database. Real providers work too:
+`./bin/demoagent -provider openai` (needs `OPENAI_API_KEY`) or `-provider anthropic`.
+
 Docker:
 
 ```sh
@@ -46,7 +58,7 @@ docker compose -f deploy/docker-compose.yml up --build
 
 - [x] **M0** — Scaffold: module, CI, Docker, Makefile
 - [x] **M1** — Tracing core: span model, tracer SDK, ingest endpoint, SQLite store
-- [ ] **M2** — Demo agent: ReAct research agent with mock LLM + real provider adapters
+- [x] **M2** — Demo agent: ReAct research agent with mock LLM + real provider adapters
 - [ ] **M3** — Trace UI: list, waterfall detail, span payload inspector (HTMX)
 - [ ] **M4** — Replay: cassette recorder, deterministic replay, divergence report
 - [ ] **M5** — Eval harness: YAML suites, assertions, metrics, baseline regression gate
@@ -61,8 +73,8 @@ cmd/blackbox/      server binary (serve, ping, version)
 cmd/demoagent/     demo ReAct research agent
 pkg/span/          span model + agent semantic conventions (wire format)
 pkg/tracer/        public Go SDK for agent authors
-pkg/llm/           LLM provider interface: mock, openai, anthropic
-internal/          ingest, store, replay, eval, api, ui
+pkg/llm/           LLM provider interface: mock, OpenAI, Anthropic
+internal/          demoagent, ingest, store, replay, eval, api, ui
 web/               embedded static assets
 evals/             golden eval datasets (YAML)
 deploy/            docker compose
