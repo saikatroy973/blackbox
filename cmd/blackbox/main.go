@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/saikat/blackbox/internal/replay"
 	"github.com/saikat/blackbox/internal/server"
 	"github.com/saikat/blackbox/internal/store"
 )
@@ -35,6 +36,8 @@ func run(args []string) error {
 		return serve(args[1:])
 	case "ping":
 		return ping(args[1:])
+	case "replay":
+		return replayCmd(args[1:])
 	case "version":
 		fmt.Println("blackbox", version)
 		return nil
@@ -50,11 +53,62 @@ func usage() {
 	fmt.Print(`blackbox - flight recorder for AI agents
 
 Usage:
-  blackbox serve [-addr :8080]   start the server
-  blackbox ping [-url URL]       check that a server is healthy
-  blackbox version               print version
-  blackbox help                  show this help
+  blackbox serve [-addr :8080]    start the server
+  blackbox ping [-url URL]        check that a server is healthy
+  blackbox replay [-db PATH] ID   re-run a recorded trace deterministically
+  blackbox version                print version
+  blackbox help                   show this help
 `)
+}
+
+// errReplayDiverged is returned when a replay does not match the
+// recorded run. The report has already been printed.
+var errReplayDiverged = errors.New("replay diverged from the original run")
+
+func replayCmd(args []string) error {
+	fs := flag.NewFlagSet("replay", flag.ContinueOnError)
+	dbPath := fs.String("db", "blackbox.db", "SQLite database path")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("usage: blackbox replay [-db path] <trace-id>")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	st, err := store.OpenSQLite(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer func() { _ = st.Close() }()
+
+	report, err := replay.New(st).Run(ctx, fs.Arg(0))
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Replaying trace %s (%d spans, %d cassettes)\n", report.TraceID, report.Spans, report.Cassettes)
+	fmt.Printf("Replay trace:  %s\n", report.ReplayTraceID)
+	fmt.Printf("Cassette hits: %d, divergences: %d\n", report.Hits, report.Misses)
+
+	if report.Misses > 0 {
+		fmt.Println("Divergences:")
+		for _, d := range report.Divergences {
+			fmt.Printf("  - %s %q: %s\n", d.Kind, d.Name, d.Detail)
+		}
+		err := errReplayDiverged
+		if report.RunErr != nil {
+			err = fmt.Errorf("%w: %v", errReplayDiverged, report.RunErr)
+		}
+		return err
+	}
+	if report.RunErr != nil {
+		return report.RunErr
+	}
+	fmt.Println("Replay matches the original run.")
+	return nil
 }
 
 func serve(args []string) error {

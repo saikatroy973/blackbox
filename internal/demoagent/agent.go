@@ -23,6 +23,8 @@ type Config struct {
 	Model string
 	// MaxSteps bounds the ReAct loop. Defaults to 8.
 	MaxSteps int
+	// Tags are recorded as attributes on the run span.
+	Tags map[string]any
 }
 
 // Agent is a small ReAct research agent: it thinks with an LLM, calls
@@ -33,6 +35,7 @@ type Agent struct {
 	tools    *Registry
 	model    string
 	maxSteps int
+	tags     map[string]any
 }
 
 // New returns an Agent.
@@ -51,6 +54,7 @@ func New(cfg Config) *Agent {
 		tools:    tools,
 		model:    cfg.Model,
 		maxSteps: maxSteps,
+		tags:     cfg.Tags,
 	}
 }
 
@@ -81,6 +85,9 @@ func (a *Agent) Run(ctx context.Context, question string) (Result, error) {
 	defer run.End()
 
 	run.SetAttribute(span.AttrAgentName, "research-agent")
+	for k, v := range a.tags {
+		run.SetAttribute(k, v)
+	}
 	_ = run.SetInput(map[string]any{"question": question})
 
 	messages := []llm.Message{

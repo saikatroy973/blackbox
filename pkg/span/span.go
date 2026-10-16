@@ -43,6 +43,7 @@ const (
 	AttrToolName     = "gen_ai.tool.name"
 	AttrCostUSD      = "blackbox.cost_usd"
 	AttrTruncated    = "blackbox.truncated"
+	AttrReplayOf     = "blackbox.replay_of"
 )
 
 // ErrInvalid marks span validation failures.

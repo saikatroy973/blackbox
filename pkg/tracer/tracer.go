@@ -25,7 +25,11 @@ const (
 // Config configures a Tracer.
 type Config struct {
 	// Endpoint of the Blackbox ingest API. Defaults to DefaultEndpoint.
+	// Ignored when Exporter is set.
 	Endpoint string
+	// Exporter overrides the default HTTP exporter. Useful for writing
+	// spans straight into a store (replay, evals, tests).
+	Exporter Exporter
 	// ServiceName is recorded as the service.name attribute on run spans.
 	ServiceName string
 	// BatchSize is the number of queued spans that triggers a flush.
@@ -68,6 +72,9 @@ func New(cfg Config) *Tracer {
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Timeout: 5 * time.Second}
+	}
+	if cfg.Exporter == nil {
+		cfg.Exporter = &httpExporter{endpoint: cfg.Endpoint, client: cfg.HTTPClient}
 	}
 
 	t := &Tracer{

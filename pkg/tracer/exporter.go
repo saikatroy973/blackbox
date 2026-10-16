@@ -12,8 +12,51 @@ import (
 	"github.com/saikat/blackbox/pkg/span"
 )
 
+// Exporter consumes batches of ended spans.
+type Exporter interface {
+	ExportSpans(ctx context.Context, spans []span.Span) error
+}
+
+// ExporterFunc adapts a function to the Exporter interface.
+type ExporterFunc func(ctx context.Context, spans []span.Span) error
+
+// ExportSpans implements Exporter.
+func (f ExporterFunc) ExportSpans(ctx context.Context, spans []span.Span) error {
+	return f(ctx, spans)
+}
+
 type exportRequest struct {
 	Spans []span.Span `json:"spans"`
+}
+
+// httpExporter posts span batches to a Blackbox ingest endpoint.
+type httpExporter struct {
+	endpoint string
+	client   *http.Client
+}
+
+func (h *httpExporter) ExportSpans(ctx context.Context, batch []span.Span) error {
+	body, err := json.Marshal(exportRequest{Spans: batch})
+	if err != nil {
+		return fmt.Errorf("marshal batch: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("export: unexpected status %s", resp.Status)
+	}
+	return nil
 }
 
 func (t *Tracer) record(s span.Span) {
@@ -58,33 +101,9 @@ func (t *Tracer) flush() {
 	t.queue = nil
 	t.mu.Unlock()
 
-	if err := t.export(batch); err != nil && t.cfg.OnError != nil {
+	if err := t.cfg.Exporter.ExportSpans(context.Background(), batch); err != nil && t.cfg.OnError != nil {
 		t.cfg.OnError(err)
 	}
-}
-
-func (t *Tracer) export(batch []span.Span) error {
-	body, err := json.Marshal(exportRequest{Spans: batch})
-	if err != nil {
-		return fmt.Errorf("marshal batch: %w", err)
-	}
-	req, err := http.NewRequest(http.MethodPost, t.cfg.Endpoint, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := t.cfg.HTTPClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("export: unexpected status %s", resp.Status)
-	}
-	return nil
 }
 
 // Shutdown flushes queued spans and stops the tracer. It is safe to call

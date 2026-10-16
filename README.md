@@ -52,6 +52,17 @@ Open <http://localhost:8080/ui/> for the dashboard: trace list with filters,
 waterfall span view, and a payload inspector for every LLM call and tool call.
 A JSON API is available at `/v1/traces` and `/v1/traces/{id}`.
 
+Replay any recorded run deterministically — every LLM call and tool call is
+served from cassettes extracted from the trace, and any prompt/tool/input
+change is reported as a divergence at the exact step it happens:
+
+```sh
+./bin/blackbox replay <trace-id>
+# Replaying trace 82d4a9b56229 (6 spans, 3 cassettes)
+# Cassette hits: 3, divergences: 0
+# Replay matches the original run.
+```
+
 Docker:
 
 ```sh
@@ -64,7 +75,7 @@ docker compose -f deploy/docker-compose.yml up --build
 - [x] **M1** — Tracing core: span model, tracer SDK, ingest endpoint, SQLite store
 - [x] **M2** — Demo agent: ReAct research agent with mock LLM + real provider adapters
 - [x] **M3** — Trace UI: list, waterfall detail, span payload inspector (HTMX)
-- [ ] **M4** — Replay: cassette recorder, deterministic replay, divergence report
+- [x] **M4** — Replay: cassette recorder, deterministic replay, divergence report
 - [ ] **M5** — Eval harness: YAML suites, assertions, metrics, baseline regression gate
 - [ ] **M6** — Eval UI: suite runs, trend charts, A/B trace diff
 - [ ] **M7** — Prod mode: Postgres, docker compose stack, live SSE streaming
