@@ -6,10 +6,13 @@ COPY go.* ./
 RUN go mod download
 COPY . .
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/blackbox ./cmd/blackbox
+RUN CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/blackbox ./cmd/blackbox \
+ && mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/blackbox /blackbox
+COPY --from=build --chown=nonroot:nonroot /out/data /data
+WORKDIR /data
 EXPOSE 8080
 ENTRYPOINT ["/blackbox"]
 CMD ["serve"]

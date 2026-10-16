@@ -7,9 +7,14 @@ services:
     ports:
       - "8080:8080"
     command: ["serve", "-addr", ":8080"]
+    volumes:
+      - blackbox-data:/data
     healthcheck:
       test: ["CMD", "/blackbox", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 2s
+
+volumes:
+  blackbox-data:

@@ -45,7 +45,7 @@ docker compose -f deploy/docker-compose.yml up --build
 ## Roadmap
 
 - [x] **M0** — Scaffold: module, CI, Docker, Makefile
-- [ ] **M1** — Tracing core: span model, tracer SDK, ingest endpoint, SQLite store
+- [x] **M1** — Tracing core: span model, tracer SDK, ingest endpoint, SQLite store
 - [ ] **M2** — Demo agent: ReAct research agent with mock LLM + real provider adapters
 - [ ] **M3** — Trace UI: list, waterfall detail, span payload inspector (HTMX)
 - [ ] **M4** — Replay: cassette recorder, deterministic replay, divergence report
@@ -59,13 +59,34 @@ docker compose -f deploy/docker-compose.yml up --build
 ```
 cmd/blackbox/      server binary (serve, ping, version)
 cmd/demoagent/     demo ReAct research agent
+pkg/span/          span model + agent semantic conventions (wire format)
 pkg/tracer/        public Go SDK for agent authors
 pkg/llm/           LLM provider interface: mock, openai, anthropic
-internal/          span model, ingest, store, replay, eval, api, ui
+internal/          ingest, store, replay, eval, api, ui
 web/               embedded static assets
 evals/             golden eval datasets (YAML)
 deploy/            docker compose
 ```
+
+## Instrumenting an agent
+
+```go
+tr := tracer.New(tracer.Config{
+    Endpoint:    "http://localhost:8080/v1/spans",
+    ServiceName: "research-agent",
+})
+defer tr.Shutdown(context.Background())
+
+ctx, run := tr.StartRun(ctx, "research-agent")
+defer run.End()
+
+_, llm := tr.StartLLMCall(ctx, "plan")
+llm.SetAttribute(span.AttrModel, "mock-1")
+_ = llm.SetOutput("I should search for the population.")
+llm.End()
+```
+
+Spans are batched and exported to `POST /v1/spans`. Payloads larger than 256 KiB are truncated and flagged (`blackbox.truncated`).
 
 ## Development
 
