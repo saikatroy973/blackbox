@@ -3,8 +3,10 @@ package ui
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/saikat/blackbox/internal/eval"
 	"github.com/saikat/blackbox/internal/store"
 	"github.com/saikat/blackbox/pkg/span"
 )
@@ -58,16 +60,24 @@ func newTraceRows(sums []store.TraceSummary) []traceRow {
 }
 
 type tracePageView struct {
-	Title     string
+	Title       string
+	TraceID     string
+	ShortID     string
+	RootName    string
+	Status      string
+	Duration    time.Duration
+	StartTime   time.Time
+	SpanCount   int
+	TotalCost   float64
+	Nodes       []spanNode
+	DiffOptions []diffOption
+}
+
+type diffOption struct {
 	TraceID   string
 	ShortID   string
 	RootName  string
-	Status    string
-	Duration  time.Duration
 	StartTime time.Time
-	SpanCount int
-	TotalCost float64
-	Nodes     []spanNode
 }
 
 type spanNode struct {
@@ -245,4 +255,139 @@ func formatDuration(d time.Duration) string {
 
 func formatCost(c float64) string {
 	return fmt.Sprintf("$%.6f", c)
+}
+
+type evalsView struct {
+	Title  string
+	Suites []evalSuiteRow
+}
+
+type evalSuiteRow struct {
+	Suite         string
+	Runs          int
+	LatestID      string
+	LatestStarted time.Time
+	LatestPassed  int
+	LatestTotal   int
+	LatestCost    float64
+	SparkPoints   string
+	SparkClass    string
+}
+
+func newEvalSuiteRows(runs []store.EvalRun) []evalSuiteRow {
+	bySuite := make(map[string][]store.EvalRun)
+	var order []string
+	for _, r := range runs {
+		if _, ok := bySuite[r.Suite]; !ok {
+			order = append(order, r.Suite)
+		}
+		bySuite[r.Suite] = append(bySuite[r.Suite], r)
+	}
+	rows := make([]evalSuiteRow, 0, len(order))
+	for _, suite := range order {
+		list := bySuite[suite] // newest first
+		latest := list[0]
+		chrono := make([]store.EvalRun, 0, len(list))
+		for i := len(list) - 1; i >= 0; i-- {
+			chrono = append(chrono, list[i])
+		}
+		if len(chrono) > 20 {
+			chrono = chrono[len(chrono)-20:]
+		}
+		class := "spark-error"
+		if latest.Failed == 0 {
+			class = "spark-ok"
+		}
+		rows = append(rows, evalSuiteRow{
+			Suite:         suite,
+			Runs:          len(list),
+			LatestID:      latest.ID,
+			LatestStarted: latest.StartedAt,
+			LatestPassed:  latest.Passed,
+			LatestTotal:   latest.Total,
+			LatestCost:    latest.TotalCostUSD,
+			SparkPoints:   sparkPoints(chrono),
+			SparkClass:    class,
+		})
+	}
+	return rows
+}
+
+// sparkPoints renders pass rates as an SVG polyline over a 100x30 box.
+func sparkPoints(runs []store.EvalRun) string {
+	y := func(r store.EvalRun) float64 {
+		if r.Total == 0 {
+			return 1
+		}
+		return 29 - float64(r.Passed)/float64(r.Total)*28
+	}
+	if len(runs) == 1 {
+		return fmt.Sprintf("0,%.1f 100,%.1f", y(runs[0]), y(runs[0]))
+	}
+	var b strings.Builder
+	for i, r := range runs {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "%.1f,%.1f", float64(i)*100/float64(len(runs)-1), y(r))
+	}
+	return b.String()
+}
+
+type evalRunView struct {
+	Title      string
+	ID         string
+	ShortID    string
+	Suite      string
+	StartedAt  time.Time
+	DurationMS int64
+	Total      int
+	Passed     int
+	Failed     int
+	TotalCost  float64
+	Cases      []evalCaseRow
+}
+
+type evalCaseRow struct {
+	Name       string
+	Passed     bool
+	Answer     string
+	TraceID    string
+	ShortTrace string
+	Steps      int
+	Tools      string
+	CostUSD    float64
+	DurationMS int64
+	Failures   []string
+}
+
+func newEvalRunView(run store.EvalRun, cases []eval.CaseResult) evalRunView {
+	rows := make([]evalCaseRow, 0, len(cases))
+	for _, c := range cases {
+		rows = append(rows, evalCaseRow{
+			Name:       c.Name,
+			Passed:     c.Passed,
+			Answer:     c.Answer,
+			TraceID:    c.TraceID,
+			ShortTrace: shortID(c.TraceID),
+			Steps:      c.Steps,
+			Tools:      strings.Join(c.Tools, ", "),
+			CostUSD:    c.CostUSD,
+			DurationMS: c.DurationMS,
+			Failures:   c.Failures,
+		})
+	}
+	return evalRunView{
+		Title:      "Eval " + run.Suite,
+		ID:         run.ID,
+		ShortID:    shortID(run.ID),
+		Suite:      run.Suite,
+		StartedAt:  run.StartedAt,
+		DurationMS: run.DurationMS,
+		Total:      run.Total,
+		Passed:     run.Passed,
+		Failed:     run.Failed,
+		TotalCost:  run.TotalCostUSD,
+		Cases:      rows,
+	}
 }

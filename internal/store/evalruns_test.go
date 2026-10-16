@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -80,5 +81,16 @@ func TestEvalRunsRoundTrip(t *testing.T) {
 	}
 	if len(limited) != 1 || limited[0].ID != "run-2" {
 		t.Fatalf("limited = %+v", limited)
+	}
+
+	gotRun, err := st.GetEvalRun(ctx, "run-1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if gotRun.Suite != "alpha" || gotRun.Passed != 2 {
+		t.Fatalf("get = %+v", gotRun)
+	}
+	if _, err := st.GetEvalRun(ctx, "missing"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing err = %v, want ErrNotFound", err)
 	}
 }

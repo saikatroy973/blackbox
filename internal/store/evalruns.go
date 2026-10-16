@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -87,4 +89,31 @@ func (s *SQLite) ListEvalRuns(ctx context.Context, f EvalRunFilter) ([]EvalRun, 
 		out = []EvalRun{}
 	}
 	return out, nil
+}
+
+const getEvalRunSQL = `
+SELECT id, suite, started_at, duration_ms, total, passed, failed, total_cost_usd, results
+FROM eval_runs
+WHERE id = ?`
+
+// GetEvalRun returns a single eval run by ID.
+func (s *SQLite) GetEvalRun(ctx context.Context, id string) (EvalRun, error) {
+	var (
+		run       EvalRun
+		startedNS int64
+		results   string
+	)
+	err := s.db.QueryRowContext(ctx, getEvalRunSQL, id).Scan(
+		&run.ID, &run.Suite, &startedNS, &run.DurationMS,
+		&run.Total, &run.Passed, &run.Failed, &run.TotalCostUSD, &results,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return EvalRun{}, ErrNotFound
+	}
+	if err != nil {
+		return EvalRun{}, err
+	}
+	run.StartedAt = time.Unix(0, startedNS).UTC()
+	run.Results = json.RawMessage(results)
+	return run, nil
 }

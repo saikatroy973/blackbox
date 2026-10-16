@@ -5,6 +5,17 @@
     trace {{.ShortID}} · {{formatTime .StartTime}} · {{formatDuration .Duration}} · {{.SpanCount}} spans
     {{if gt .TotalCost 0.0}}· {{formatCost .TotalCost}}{{end}}
   </div>
+  {{if .DiffOptions}}
+  <form class="filters" method="get" action="/ui/diff">
+    <input type="hidden" name="left" value="{{.TraceID}}">
+    <select name="right" onchange="if (this.value) this.form.submit()">
+      <option value="">compare with…</option>
+      {{range .DiffOptions}}
+      <option value="{{.TraceID}}">{{.ShortID}} · {{.RootName}} · {{formatTime .StartTime}}</option>
+      {{end}}
+    </select>
+  </form>
+  {{end}}
 </div>
 <div class="trace-layout">
   <section class="spans">

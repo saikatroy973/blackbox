@@ -43,6 +43,9 @@ type Store interface {
 	InsertEvalRun(ctx context.Context, run EvalRun) error
 	// ListEvalRuns returns eval runs, most recent first.
 	ListEvalRuns(ctx context.Context, f EvalRunFilter) ([]EvalRun, error)
+	// GetEvalRun returns a single eval run. It returns ErrNotFound if the
+	// run does not exist.
+	GetEvalRun(ctx context.Context, id string) (EvalRun, error)
 	// Close releases the underlying resources.
 	Close() error
 }

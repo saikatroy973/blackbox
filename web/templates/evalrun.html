@@ -1,0 +1,36 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>{{.Suite}}
+    {{if eq .Failed 0}}<span class="badge badge-ok">passing</span>{{else}}<span class="badge badge-error">{{.Failed}} failing</span>{{end}}
+  </h1>
+  <div class="meta mono dim">
+    run {{.ShortID}} · {{formatTime .StartedAt}} · {{.DurationMS}}ms · {{.Passed}}/{{.Total}} passed · {{formatCost .TotalCost}}
+  </div>
+</div>
+<table class="traces">
+  <thead>
+    <tr><th>case</th><th>status</th><th>answer</th><th>tools</th><th>steps</th><th>cost</th><th>time</th><th>trace</th></tr>
+  </thead>
+  <tbody>
+  {{range .Cases}}
+    <tr>
+      <td class="name">{{.Name}}</td>
+      <td>{{if .Passed}}<span class="badge badge-ok">pass</span>{{else}}<span class="badge badge-error">fail</span>{{end}}</td>
+      <td><span class="case-answer mono dim" title="{{.Answer}}">{{.Answer}}</span></td>
+      <td class="mono dim">{{.Tools}}</td>
+      <td class="mono">{{.Steps}}</td>
+      <td class="mono">{{formatCost .CostUSD}}</td>
+      <td class="mono">{{.DurationMS}}ms</td>
+      <td>{{if .TraceID}}<a class="mono" href="/ui/traces/{{.TraceID}}">{{.ShortTrace}}</a>{{end}}</td>
+    </tr>
+    {{if .Failures}}
+    <tr class="failure-row">
+      <td colspan="8">
+        {{range .Failures}}<div class="failure">- {{.}}</div>{{end}}
+      </td>
+    </tr>
+    {{end}}
+  {{end}}
+  </tbody>
+</table>
+{{end}}

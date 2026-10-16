@@ -1,0 +1,66 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Trace diff</h1>
+  <div class="meta mono dim">
+    {{.Summary.Same}} same · {{.Summary.Changed}} changed · {{.Summary.Added}} added · {{.Summary.Removed}} removed
+  </div>
+</div>
+<div class="diff-heads">
+  <div class="diff-head">
+    <div><span class="badge badge-dim">left</span> <strong>{{.Left.RootName}}</strong> <span class="badge badge-{{.Left.Status}}">{{.Left.Status}}</span></div>
+    <div class="mono dim">
+      <a href="/ui/traces/{{.Left.TraceID}}">{{.Left.ShortID}}</a> · {{formatTime .Left.StartTime}} · {{formatDuration .Left.Duration}} · {{.Left.Spans}} spans · {{formatCost .Left.Cost}}
+    </div>
+  </div>
+  <div class="diff-head">
+    <div><span class="badge badge-dim">right</span> <strong>{{.Right.RootName}}</strong> <span class="badge badge-{{.Right.Status}}">{{.Right.Status}}</span></div>
+    <div class="mono dim">
+      <a href="/ui/traces/{{.Right.TraceID}}">{{.Right.ShortID}}</a> · {{formatTime .Right.StartTime}} · {{formatDuration .Right.Duration}} · {{.Right.Spans}} spans · {{formatCost .Right.Cost}}
+    </div>
+  </div>
+</div>
+<div class="diff-rows">
+  {{range .Rows}}
+  <div class="diff-row {{.Kind}}">
+    <div class="diff-marker">{{if eq .Kind "same"}}= {{else if eq .Kind "changed"}}~{{else if eq .Kind "added"}}+{{else}}-{{end}}</div>
+    <div class="diff-cell">
+      {{with .Left}}
+      <span class="dot {{.KindClass}}"></span>
+      <span style="padding-left:{{.IndentPx}}px">{{.Name}}</span>
+      <span class="kind {{.KindClass}}">{{.Kind}}</span>
+      {{if eq .Status "error"}}<span class="badge badge-error">error</span>{{end}}
+      <span class="mono dim">{{formatDuration .Duration}}</span>
+      {{end}}
+    </div>
+    <div class="diff-cell">
+      {{with .Right}}
+      <span class="dot {{.KindClass}}"></span>
+      <span style="padding-left:{{.IndentPx}}px">{{.Name}}</span>
+      <span class="kind {{.KindClass}}">{{.Kind}}</span>
+      {{if eq .Status "error"}}<span class="badge badge-error">error</span>{{end}}
+      <span class="mono dim">{{formatDuration .Duration}}</span>
+      {{end}}
+    </div>
+  </div>
+  {{if .Changes}}
+  <div class="diff-changes mono">
+    {{range .Changes}}<span class="diff-change">{{.}}</span>{{end}}
+  </div>
+  {{end}}
+  {{if .InputDiff}}
+  <details class="diff-payload">
+    <summary>input diff</summary>
+    <pre class="diff-pre">{{range .InputDiff}}<span class="{{.Class}}">{{.Prefix}} {{.Text}}</span>
+{{end}}</pre>
+  </details>
+  {{end}}
+  {{if .OutputDiff}}
+  <details class="diff-payload">
+    <summary>output diff</summary>
+    <pre class="diff-pre">{{range .OutputDiff}}<span class="{{.Class}}">{{.Prefix}} {{.Text}}</span>
+{{end}}</pre>
+  </details>
+  {{end}}
+  {{end}}
+</div>
+{{end}}

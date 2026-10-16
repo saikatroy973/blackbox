@@ -42,6 +42,10 @@ func (f *fakeStore) ListEvalRuns(context.Context, store.EvalRunFilter) ([]store.
 	return nil, nil
 }
 
+func (f *fakeStore) GetEvalRun(context.Context, string) (store.EvalRun, error) {
+	return store.EvalRun{}, store.ErrNotFound
+}
+
 func (f *fakeStore) Close() error { return nil }
 
 func validSpan() span.Span {

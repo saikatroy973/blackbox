@@ -1,0 +1,30 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Evals</h1>
+</div>
+{{if .Suites}}
+<table class="traces">
+  <thead>
+    <tr><th>suite</th><th>last run</th><th>pass rate</th><th>trend</th><th>cost</th><th>runs</th></tr>
+  </thead>
+  <tbody>
+  {{range .Suites}}
+    <tr class="clickable" onclick="location.href='/ui/evals/{{.LatestID}}'">
+      <td class="name">{{.Suite}}</td>
+      <td class="mono dim">{{formatTime .LatestStarted}}</td>
+      <td class="mono">{{.LatestPassed}}/{{.LatestTotal}}</td>
+      <td>
+        <svg class="spark {{.SparkClass}}" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <polyline points="{{.SparkPoints}}" fill="none" vector-effect="non-scaling-stroke"></polyline>
+        </svg>
+      </td>
+      <td class="mono">{{formatCost .LatestCost}}</td>
+      <td class="mono">{{.Runs}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="empty">No eval runs yet. Run <code>./bin/blackbox eval run -dir evals</code> to record one.</p>
+{{end}}
+{{end}}
