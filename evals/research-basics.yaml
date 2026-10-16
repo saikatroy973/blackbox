@@ -1,0 +1,27 @@
+suite: research-basics
+cases:
+  - name: capital-of-france
+    question: "What is the capital of France and its population?"
+    expect:
+      output_contains: ["Paris"]
+      tools_called: ["web_search"]
+      max_steps: 3
+      max_cost_usd: 0.01
+  - name: arithmetic
+    question: "What is 123 * 456?"
+    expect:
+      output_contains: ["56088"]
+      tools_called: ["calculator"]
+      max_steps: 3
+      max_cost_usd: 0.01
+  - name: llm-agent-topics
+    question: "Tell me about LLM agents."
+    expect:
+      output_contains: ["ReAct"]
+      tools_called: ["web_search"]
+      max_steps: 3
+  - name: unknown-topic-graceful
+    question: "What is the population of Atlantis?"
+    expect:
+      output_not_contains: ["Paris"]
+      max_steps: 4

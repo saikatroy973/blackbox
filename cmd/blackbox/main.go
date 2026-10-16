@@ -10,12 +10,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
 	"syscall"
 	"time"
 
+	"github.com/saikat/blackbox/internal/eval"
 	"github.com/saikat/blackbox/internal/replay"
 	"github.com/saikat/blackbox/internal/server"
 	"github.com/saikat/blackbox/internal/store"
+	"github.com/saikat/blackbox/pkg/llm"
 )
 
 var version = "dev"
@@ -38,6 +42,8 @@ func run(args []string) error {
 		return ping(args[1:])
 	case "replay":
 		return replayCmd(args[1:])
+	case "eval":
+		return evalCmd(args[1:])
 	case "version":
 		fmt.Println("blackbox", version)
 		return nil
@@ -56,6 +62,7 @@ Usage:
   blackbox serve [-addr :8080]    start the server
   blackbox ping [-url URL]        check that a server is healthy
   blackbox replay [-db PATH] ID   re-run a recorded trace deterministically
+  blackbox eval run -suite FILE   run an eval suite (-dir DIR for a directory)
   blackbox version                print version
   blackbox help                   show this help
 `)
@@ -109,6 +116,129 @@ func replayCmd(args []string) error {
 	}
 	fmt.Println("Replay matches the original run.")
 	return nil
+}
+
+// errEvalFailed is returned when an eval suite has failing cases or
+// regressions. Results have already been printed.
+var errEvalFailed = errors.New("eval failed")
+
+func evalCmd(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: blackbox eval run -suite file.yaml | -dir dir [-db path]")
+	}
+	switch args[0] {
+	case "run":
+		return evalRun(args[1:])
+	default:
+		return fmt.Errorf("unknown eval subcommand %q (run: blackbox help)", args[0])
+	}
+}
+
+func evalRun(args []string) error {
+	fs := flag.NewFlagSet("eval run", flag.ContinueOnError)
+	suitePath := fs.String("suite", "", "path to a suite YAML file")
+	dir := fs.String("dir", "", "directory of suite YAML files")
+	dbPath := fs.String("db", "blackbox.db", "SQLite database path")
+	savePath := fs.String("save", "", "write the run result as JSON")
+	baselinePath := fs.String("baseline", "", "compare against a saved run JSON")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *suitePath == "" && *dir == "" {
+		return errors.New("usage: blackbox eval run -suite file.yaml | -dir evals [-db path] [-save out.json] [-baseline base.json]")
+	}
+
+	var paths []string
+	if *suitePath != "" {
+		paths = append(paths, *suitePath)
+	}
+	if *dir != "" {
+		for _, pattern := range []string{"*.yaml", "*.yml"} {
+			matches, err := filepath.Glob(filepath.Join(*dir, pattern))
+			if err != nil {
+				return err
+			}
+			paths = append(paths, matches...)
+		}
+	}
+	if len(paths) == 0 {
+		return fmt.Errorf("no suite files found")
+	}
+	sort.Strings(paths)
+	if *savePath != "" && len(paths) > 1 {
+		return errors.New("-save requires a single suite")
+	}
+
+	var baseline *eval.RunResult
+	if *baselinePath != "" {
+		b, err := eval.LoadRunResult(*baselinePath)
+		if err != nil {
+			return err
+		}
+		baseline = &b
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	st, err := store.OpenSQLite(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer func() { _ = st.Close() }()
+
+	runner := eval.New(st, llm.NewMock(), "mock-1")
+	failed := false
+	for _, path := range paths {
+		suite, err := eval.LoadSuite(path)
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		result, err := runner.Run(ctx, suite)
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		printEvalResult(result)
+		if result.Failed > 0 {
+			failed = true
+		}
+		if baseline != nil {
+			regressions := eval.Compare(*baseline, result)
+			if len(regressions) > 0 {
+				fmt.Printf("Regressions vs baseline (%d):\n", len(regressions))
+				for _, rg := range regressions {
+					fmt.Printf("  - %s: %s\n", rg.Case, rg.Reason)
+				}
+				failed = true
+			} else if baseline.Suite == result.Suite {
+				fmt.Println("No regressions vs baseline.")
+			}
+		}
+		if *savePath != "" {
+			if err := eval.SaveRunResult(*savePath, result); err != nil {
+				return err
+			}
+		}
+	}
+	if failed {
+		return errEvalFailed
+	}
+	return nil
+}
+
+func printEvalResult(res eval.RunResult) {
+	fmt.Printf("Suite %s: %d/%d cases passed (cost $%.6f, %dms)\n",
+		res.Suite, res.Passed, res.Total, res.TotalCostUSD, res.DurationMS)
+	for _, c := range res.Cases {
+		status := "PASS"
+		if !c.Passed {
+			status = "FAIL"
+		}
+		fmt.Printf("  %s  %-24s %d steps  $%.6f  %s\n", status, c.Name, c.Steps, c.CostUSD, c.TraceID)
+		for _, f := range c.Failures {
+			fmt.Printf("        - %s\n", f)
+		}
+	}
 }
 
 func serve(args []string) error {

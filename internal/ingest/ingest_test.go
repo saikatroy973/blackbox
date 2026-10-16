@@ -36,6 +36,12 @@ func (f *fakeStore) ListTraces(context.Context, store.TraceFilter) ([]store.Trac
 	return nil, nil
 }
 
+func (f *fakeStore) InsertEvalRun(context.Context, store.EvalRun) error { return nil }
+
+func (f *fakeStore) ListEvalRuns(context.Context, store.EvalRunFilter) ([]store.EvalRun, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) Close() error { return nil }
 
 func validSpan() span.Span {

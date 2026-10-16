@@ -39,6 +39,10 @@ type Store interface {
 	GetTrace(ctx context.Context, traceID string) ([]span.Span, error)
 	// ListTraces returns trace summaries, most recent first.
 	ListTraces(ctx context.Context, f TraceFilter) ([]TraceSummary, error)
+	// InsertEvalRun persists an eval suite execution.
+	InsertEvalRun(ctx context.Context, run EvalRun) error
+	// ListEvalRuns returns eval runs, most recent first.
+	ListEvalRuns(ctx context.Context, f EvalRunFilter) ([]EvalRun, error)
 	// Close releases the underlying resources.
 	Close() error
 }

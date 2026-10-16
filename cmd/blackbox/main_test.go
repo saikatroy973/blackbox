@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -50,5 +52,50 @@ func TestReplayCommandMatches(t *testing.T) {
 func TestReplayCommandUsage(t *testing.T) {
 	if err := run([]string{"replay"}); err == nil {
 		t.Fatal("expected usage error")
+	}
+}
+
+func writeSuite(t *testing.T, question string, expectations string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "suite.yaml")
+	doc := "suite: cli-test\ncases:\n  - name: case-1\n    question: \"" + question + "\"\n    expect:\n" + expectations
+	if err := os.WriteFile(path, []byte(doc), 0o644); err != nil {
+		t.Fatalf("write suite: %v", err)
+	}
+	return path
+}
+
+func TestEvalCommandPassSaveBaseline(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "eval.db")
+	suite := writeSuite(t, "What is 2 + 3?", `      output_contains: ["5"]`+"\n      tools_called: [\"calculator\"]\n")
+	saved := filepath.Join(t.TempDir(), "baseline.json")
+
+	if err := run([]string{"eval", "run", "-suite", suite, "-db", db, "-save", saved}); err != nil {
+		t.Fatalf("eval run: %v", err)
+	}
+	if _, err := os.Stat(saved); err != nil {
+		t.Fatalf("baseline not saved: %v", err)
+	}
+	if err := run([]string{"eval", "run", "-suite", suite, "-db", db, "-baseline", saved}); err != nil {
+		t.Fatalf("eval run with baseline: %v", err)
+	}
+}
+
+func TestEvalCommandFailsOnBadExpectation(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "eval.db")
+	suite := writeSuite(t, "What is 2 + 3?", `      output_contains: ["definitely-not-there"]`+"\n")
+
+	err := run([]string{"eval", "run", "-suite", suite, "-db", db})
+	if !errors.Is(err, errEvalFailed) {
+		t.Fatalf("err = %v, want errEvalFailed", err)
+	}
+}
+
+func TestEvalCommandUsage(t *testing.T) {
+	if err := run([]string{"eval"}); err == nil {
+		t.Fatal("expected usage error")
+	}
+	if err := run([]string{"eval", "run"}); err == nil {
+		t.Fatal("expected usage error for missing suite")
 	}
 }

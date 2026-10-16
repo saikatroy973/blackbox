@@ -63,6 +63,34 @@ change is reported as a divergence at the exact step it happens:
 # Replay matches the original run.
 ```
 
+Run golden eval suites and gate on regressions. Suites are plain YAML with
+assertions on the answer, tools used, steps, cost, and latency:
+
+```yaml
+suite: research-basics
+cases:
+  - name: arithmetic
+    question: "What is 123 * 456?"
+    expect:
+      output_contains: ["56088"]
+      tools_called: ["calculator"]
+      max_steps: 3
+      max_cost_usd: 0.01
+```
+
+```sh
+./bin/blackbox eval run -dir evals -save baseline.json
+# Suite research-basics: 4/4 cases passed (cost $0.001182, 1ms)
+#   PASS  arithmetic  2 steps  $0.000247  d878c37f01157dc2
+
+./bin/blackbox eval run -dir evals -baseline baseline.json
+# fails non-zero if a case that passed in the baseline now regresses
+```
+
+Every eval case is also recorded as a trace (tagged `blackbox.eval_suite` /
+`blackbox.eval_case`), so failing cases can be inspected and replayed in
+the dashboard.
+
 Docker:
 
 ```sh
@@ -76,7 +104,7 @@ docker compose -f deploy/docker-compose.yml up --build
 - [x] **M2** — Demo agent: ReAct research agent with mock LLM + real provider adapters
 - [x] **M3** — Trace UI: list, waterfall detail, span payload inspector (HTMX)
 - [x] **M4** — Replay: cassette recorder, deterministic replay, divergence report
-- [ ] **M5** — Eval harness: YAML suites, assertions, metrics, baseline regression gate
+- [x] **M5** — Eval harness: YAML suites, assertions, metrics, baseline regression gate
 - [ ] **M6** — Eval UI: suite runs, trend charts, A/B trace diff
 - [ ] **M7** — Prod mode: Postgres, docker compose stack, live SSE streaming
 - [ ] **M8** — Polish: README GIF, seeded demo data, ingest benchmark, ADRs
@@ -84,7 +112,7 @@ docker compose -f deploy/docker-compose.yml up --build
 ## Layout
 
 ```
-cmd/blackbox/      server binary (serve, ping, version)
+cmd/blackbox/      server binary (serve, ping, replay, eval, version)
 cmd/demoagent/     demo ReAct research agent
 pkg/span/          span model + agent semantic conventions (wire format)
 pkg/tracer/        public Go SDK for agent authors
