@@ -99,3 +99,27 @@ func TestEvalCommandUsage(t *testing.T) {
 		t.Fatal("expected usage error for missing suite")
 	}
 }
+
+func TestSeedCommand(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "seed.db")
+	if err := run([]string{"seed", "-db", db, "-runs", "1", "-evals", ""}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	ctx := context.Background()
+	st, err := store.OpenSQLite(ctx, db)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+	sums, err := st.ListTraces(ctx, store.TraceFilter{Limit: 10})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(sums) != 3 { // 1 run + error trace + replay
+		t.Fatalf("traces = %d, want 3", len(sums))
+	}
+	if err := run([]string{"seed", "-db", db, "-runs", "1", "-evals", ""}); err != nil {
+		t.Fatalf("seed again (idempotent): %v", err)
+	}
+}

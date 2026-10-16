@@ -3,7 +3,7 @@ BIN     := bin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test vet fmt check-fmt lint run demo eval docker clean ci
+.PHONY: build test vet fmt check-fmt lint run demo eval seed docker clean ci
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN)/blackbox ./cmd/blackbox
@@ -32,6 +32,9 @@ demo:
 
 eval:
 	$(GO) run ./cmd/blackbox eval run -dir evals
+
+seed:
+	$(GO) run ./cmd/blackbox seed
 
 docker:
 	docker build -t blackbox:$(VERSION) .

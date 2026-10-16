@@ -18,6 +18,7 @@ import (
 
 	"github.com/saikat/blackbox/internal/eval"
 	"github.com/saikat/blackbox/internal/replay"
+	"github.com/saikat/blackbox/internal/seed"
 	"github.com/saikat/blackbox/internal/server"
 	"github.com/saikat/blackbox/internal/store"
 	"github.com/saikat/blackbox/pkg/llm"
@@ -54,6 +55,8 @@ func run(args []string) error {
 		return replayCmd(args[1:])
 	case "eval":
 		return evalCmd(args[1:])
+	case "seed":
+		return seedCmd(args[1:])
 	case "version":
 		fmt.Println("blackbox", version)
 		return nil
@@ -73,6 +76,7 @@ Usage:
   blackbox ping [-url URL]        check that a server is healthy
   blackbox replay [-db PATH] ID   re-run a recorded trace deterministically
   blackbox eval run -suite FILE   run an eval suite (-dir DIR for a directory)
+  blackbox seed [-db PATH]        record demo traces, replay and evals
   blackbox version                print version
   blackbox help                   show this help
 `)
@@ -131,6 +135,36 @@ func replayCmd(args []string) error {
 // errEvalFailed is returned when an eval suite has failing cases or
 // regressions. Results have already been printed.
 var errEvalFailed = errors.New("eval failed")
+
+func seedCmd(args []string) error {
+	fs := flag.NewFlagSet("seed", flag.ContinueOnError)
+	dbPath := fs.String("db", "blackbox.db", "SQLite path or postgres:// DSN")
+	evalsDir := fs.String("evals", "evals", "directory of suite YAML files to run (empty to skip)")
+	runs := fs.Int("runs", 0, "number of demo traces to record (0 = all)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	st, err := openStore(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer func() { _ = st.Close() }()
+
+	report, err := seed.Run(ctx, st, seed.Options{Runs: *runs, EvalsDir: *evalsDir})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Seeded %d traces (plus 1 failing trace and 1 replay)\n", len(report.Traces))
+	if report.EvalSuites > 0 {
+		fmt.Printf("Recorded %d eval suite run(s) covering %d case(s)\n", report.EvalSuites, report.EvalCases)
+	}
+	fmt.Println("Run `blackbox serve` and open http://localhost:8080/ui/ to explore.")
+	return nil
+}
 
 func evalCmd(args []string) error {
 	if len(args) == 0 {

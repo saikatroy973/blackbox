@@ -2,7 +2,9 @@
 
 **Flight recorder for AI agents.** Instrument agent runs as distributed traces, replay any run deterministically, and gate prompt/model changes with an eval harness.
 
-> Status: under construction — milestone **M0 (scaffold)** complete. See [roadmap](#roadmap).
+![Blackbox dashboard: live trace list, span waterfall and payload inspector](docs/demo.svg)
+
+> Status: feature-complete for v1 — tracing, replay, evals, dashboard, Postgres, live SSE. See [roadmap](#roadmap).
 
 ## Why
 
@@ -34,6 +36,14 @@ make build
 ```sh
 curl localhost:8080/healthz   # ok
 curl localhost:8080/          # {"name":"blackbox","version":"dev",...}
+```
+
+Want data to look at immediately? Seed a demo dataset (traces, one failing
+trace, a replay, eval runs) and open the dashboard:
+
+```sh
+./bin/blackbox seed
+./bin/blackbox serve          # open http://localhost:8080/ui/
 ```
 
 In another terminal, run the demo research agent (no API keys needed — it uses a deterministic mock LLM):
@@ -124,19 +134,20 @@ docker compose -f deploy/docker-compose.yml up --build
 - [x] **M5** — Eval harness: YAML suites, assertions, metrics, baseline regression gate
 - [x] **M6** — Eval UI: suite runs, trend charts, A/B trace diff
 - [x] **M7** — Prod mode: Postgres, docker compose stack, live SSE streaming
-- [ ] **M8** — Polish: README GIF, seeded demo data, ingest benchmark, ADRs
+- [x] **M8** — Polish: animated README demo, seeded demo data, ingest benchmark, ADRs
 
 ## Layout
 
 ```
-cmd/blackbox/      server binary (serve, ping, replay, eval, version)
+cmd/blackbox/      server binary (serve, ping, replay, eval, seed, version)
 cmd/demoagent/     demo ReAct research agent
 pkg/span/          span model + agent semantic conventions (wire format)
 pkg/tracer/        public Go SDK for agent authors
 pkg/llm/           LLM provider interface: mock, OpenAI, Anthropic
-internal/          demoagent, ingest, store, replay, eval, api, ui, events
+internal/          demoagent, ingest, store, replay, eval, seed, api, ui, events
 web/               embedded static assets
 evals/             golden eval datasets (YAML)
+docs/              animated demo, ADRs
 deploy/            docker compose
 ```
 
@@ -160,6 +171,19 @@ llm.End()
 
 Spans are batched and exported to `POST /v1/spans`. Payloads larger than 256 KiB are truncated and flagged (`blackbox.truncated`).
 
+## Performance
+
+Ingest benchmarks (`go test -bench=. -benchtime=2s -run '^$' ./internal/ingest ./internal/store`,
+Apple Silicon laptop, 50-span batches, in-memory SQLite):
+
+| Benchmark | Result |
+|---|---|
+| HTTP decode + validate (per span) | ~840k spans/s, 59µs per batch |
+| HTTP ingest end-to-end incl. SQLite batch | ~184k spans/s, 272µs per batch |
+| `InsertSpans` (50-span transaction) | ~208k spans/s |
+| `GetTrace` (20 spans) | 57µs |
+| `ListTraces` (100 traces / 1k spans, limit 50) | 450µs |
+
 ## Development
 
 ```sh
@@ -176,6 +200,9 @@ docker run -d --name bb-pg -e POSTGRES_USER=blackbox -e POSTGRES_PASSWORD=blackb
   -e POSTGRES_DB=blackbox -p 5433:5432 postgres:17-alpine
 TEST_POSTGRES_DSN='postgres://blackbox:blackbox@localhost:5433/blackbox?sslmode=disable' go test ./internal/store/
 ```
+
+Design decisions are recorded in [docs/adr](docs/adr/) (wire format,
+storage, cassette replay, dashboard stack, eval format).
 
 ## License
 
