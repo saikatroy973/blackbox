@@ -11,6 +11,22 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: blackbox
+          POSTGRES_PASSWORD: blackbox
+          POSTGRES_DB: blackbox
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U blackbox -d blackbox"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_POSTGRES_DSN: postgres://blackbox:blackbox@localhost:5432/blackbox?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/saikat/blackbox/internal/api"
+	"github.com/saikat/blackbox/internal/events"
 	"github.com/saikat/blackbox/internal/ingest"
 	"github.com/saikat/blackbox/internal/store"
 	"github.com/saikat/blackbox/internal/ui"
@@ -39,8 +40,9 @@ func New(cfg Config) (http.Handler, error) {
 	})
 
 	if cfg.Store != nil {
-		mux.Handle("POST /v1/spans", ingest.New(cfg.Store))
-		api.New(cfg.Store).Routes(mux)
+		hub := events.NewHub()
+		mux.Handle("POST /v1/spans", ingest.New(cfg.Store, ingest.WithNotifier(hub)))
+		api.New(cfg.Store, api.WithEventStream(hub)).Routes(mux)
 
 		uiHandler, err := ui.New(cfg.Store)
 		if err != nil {

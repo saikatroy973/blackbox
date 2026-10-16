@@ -114,10 +114,27 @@ func TestListPage(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"research-agent", "other-agent", "badge-ok", "badge-error"} {
+	for _, want := range []string{
+		"research-agent", "other-agent", "badge-ok", "badge-error",
+		"/v1/events", "live-dot", "every 30s, refresh",
+	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("page missing %q", want)
 		}
+	}
+}
+
+func TestListPageFragment(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/ui/", nil)
+	req.Header.Set("HX-Request", "true")
+	rec := httptest.NewRecorder()
+	seed(t).ServeHTTP(rec, req)
+	body := rec.Body.String()
+	if strings.Contains(body, "<!doctype") || strings.Contains(body, "<html") {
+		t.Fatal("HTMX fragment rendered a full page")
+	}
+	if !strings.Contains(body, "research-agent") {
+		t.Fatal("fragment missing trace rows")
 	}
 }
 

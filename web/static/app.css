@@ -228,6 +228,18 @@ pre.payload {
 .nav a { color: var(--dim); text-decoration: none; }
 .nav a:hover { color: var(--text); }
 
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  vertical-align: middle;
+  margin-left: 6px;
+  transition: background 0.2s;
+}
+.live-dot-on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+
 .spark { width: 120px; height: 30px; display: block; }
 .spark polyline { stroke-width: 2; }
 .spark-ok polyline { stroke: var(--ok); }

@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="page-head">
-  <h1>Traces</h1>
+  <h1>Traces <span class="live-dot" id="live-dot" title="live updates via SSE"></span></h1>
   <form class="filters" method="get" action="/ui/">
     <select name="status" onchange="this.form.submit()">
       <option value="" {{if eq .Status ""}}selected{{end}}>all statuses</option>
@@ -14,9 +14,27 @@
     </select>
   </form>
 </div>
-<div id="trace-panel" hx-get="/ui/traces?status={{.Status}}&amp;limit={{.Limit}}" hx-trigger="every 4s" hx-swap="innerHTML">
+<div id="trace-panel" hx-get="/ui/traces?status={{.Status}}&amp;limit={{.Limit}}" hx-trigger="every 30s, refresh" hx-swap="innerHTML">
   {{template "trace-table" .}}
 </div>
+<script>
+(function () {
+  var dot = document.getElementById('live-dot');
+  var panel = document.getElementById('trace-panel');
+  if (!dot || !panel || typeof EventSource === 'undefined') return;
+  var es = new EventSource('/v1/events');
+  var pending = null;
+  es.addEventListener('open', function () { dot.classList.add('live-dot-on'); });
+  es.addEventListener('error', function () { dot.classList.remove('live-dot-on'); });
+  es.addEventListener('span', function () {
+    if (pending) return;
+    pending = setTimeout(function () {
+      pending = null;
+      htmx.trigger(panel, 'refresh');
+    }, 500);
+  });
+})();
+</script>
 {{end}}
 
 {{define "trace-table"}}

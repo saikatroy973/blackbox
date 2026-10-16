@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +24,15 @@ import (
 )
 
 var version = "dev"
+
+// openStore opens a SQLite database, or Postgres when the DSN is a
+// postgres:// URL.
+func openStore(ctx context.Context, dsn string) (store.Store, error) {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		return store.OpenPostgres(ctx, dsn)
+	}
+	return store.OpenSQLite(ctx, dsn)
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -74,7 +84,7 @@ var errReplayDiverged = errors.New("replay diverged from the original run")
 
 func replayCmd(args []string) error {
 	fs := flag.NewFlagSet("replay", flag.ContinueOnError)
-	dbPath := fs.String("db", "blackbox.db", "SQLite database path")
+	dbPath := fs.String("db", "blackbox.db", "SQLite path or postgres:// DSN")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -85,7 +95,7 @@ func replayCmd(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st, err := store.OpenSQLite(ctx, *dbPath)
+	st, err := openStore(ctx, *dbPath)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
@@ -138,7 +148,7 @@ func evalRun(args []string) error {
 	fs := flag.NewFlagSet("eval run", flag.ContinueOnError)
 	suitePath := fs.String("suite", "", "path to a suite YAML file")
 	dir := fs.String("dir", "", "directory of suite YAML files")
-	dbPath := fs.String("db", "blackbox.db", "SQLite database path")
+	dbPath := fs.String("db", "blackbox.db", "SQLite path or postgres:// DSN")
 	savePath := fs.String("save", "", "write the run result as JSON")
 	baselinePath := fs.String("baseline", "", "compare against a saved run JSON")
 	if err := fs.Parse(args); err != nil {
@@ -181,7 +191,7 @@ func evalRun(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st, err := store.OpenSQLite(ctx, *dbPath)
+	st, err := openStore(ctx, *dbPath)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
@@ -244,7 +254,7 @@ func printEvalResult(res eval.RunResult) {
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", ":8080", "listen address")
-	dbPath := fs.String("db", "blackbox.db", `SQLite database path (use ":memory:" for an ephemeral database)`)
+	dbPath := fs.String("db", "blackbox.db", `SQLite path or postgres:// DSN (":memory:" for ephemeral SQLite)`)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -254,7 +264,7 @@ func serve(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st, err := store.OpenSQLite(ctx, *dbPath)
+	st, err := openStore(ctx, *dbPath)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}

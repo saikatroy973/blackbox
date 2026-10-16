@@ -19,15 +19,34 @@ const DefaultMaxPayload = 256 << 10 // 256 KiB
 // maxBodyBytes caps the size of a single ingest request.
 const maxBodyBytes = 32 << 20 // 32 MiB
 
+// Notifier receives spans after they are durably stored. Implementations
+// must not block; the events hub drops spans for slow subscribers.
+type Notifier interface {
+	Notify(span.Span)
+}
+
+// Option configures a Handler.
+type Option func(*Handler)
+
+// WithNotifier publishes every stored span to n.
+func WithNotifier(n Notifier) Option {
+	return func(h *Handler) { h.notifier = n }
+}
+
 // Handler receives span batches and persists them.
 type Handler struct {
 	store      store.Store
 	maxPayload int
+	notifier   Notifier
 }
 
 // New returns a Handler that writes to st.
-func New(st store.Store) *Handler {
-	return &Handler{store: st, maxPayload: DefaultMaxPayload}
+func New(st store.Store, opts ...Option) *Handler {
+	h := &Handler{store: st, maxPayload: DefaultMaxPayload}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 type batchRequest struct {
@@ -66,6 +85,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.InsertSpans(r.Context(), req.Spans); err != nil {
 		writeError(w, http.StatusInternalServerError, "store: "+err.Error())
 		return
+	}
+	if h.notifier != nil {
+		for i := range req.Spans {
+			h.notifier.Notify(req.Spans[i])
+		}
 	}
 	writeJSON(w, http.StatusAccepted, response{Accepted: len(req.Spans)})
 }

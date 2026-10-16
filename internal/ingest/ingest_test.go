@@ -48,6 +48,58 @@ func (f *fakeStore) GetEvalRun(context.Context, string) (store.EvalRun, error) {
 
 func (f *fakeStore) Close() error { return nil }
 
+type fakeNotifier struct {
+	spans []span.Span
+}
+
+func (f *fakeNotifier) Notify(s span.Span) { f.spans = append(f.spans, s) }
+
+func TestNotifierReceivesStoredSpansOnly(t *testing.T) {
+	store := &fakeStore{}
+	notifier := &fakeNotifier{}
+	h := New(store, WithNotifier(notifier))
+
+	first, second := validSpan(), validSpan()
+	second.SpanID = "span-2"
+	body, err := json.Marshal(map[string]any{"spans": []span.Span{first, second}})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/spans", bytes.NewReader(body)))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", rec.Code)
+	}
+	if len(notifier.spans) != 2 || notifier.spans[1].SpanID != "span-2" {
+		t.Fatalf("notifier spans = %+v", notifier.spans)
+	}
+
+	store.err = errors.New("boom")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/spans", bytes.NewReader(body)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(notifier.spans) != 2 {
+		t.Fatalf("notifier called for failed insert: %+v", notifier.spans)
+	}
+
+	bad := validSpan()
+	bad.TraceID = ""
+	body, err = json.Marshal(map[string]any{"spans": []span.Span{bad}})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/spans", bytes.NewReader(body)))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	if len(notifier.spans) != 2 {
+		t.Fatalf("notifier called for invalid span: %+v", notifier.spans)
+	}
+}
+
 func validSpan() span.Span {
 	now := time.Now()
 	return span.Span{

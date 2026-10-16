@@ -110,12 +110,18 @@ func (h *Handler) listPage(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.render(w, h.listTmpl, "base", listView{
+	view := listView{
 		Title:  "Traces",
 		Status: status,
 		Limit:  limit,
 		Traces: newTraceRows(sums),
-	})
+	}
+	// HTMX refreshes only need the table fragment, not the whole page.
+	if r.Header.Get("HX-Request") == "true" {
+		h.render(w, h.listTmpl, "trace-table", view)
+		return
+	}
+	h.render(w, h.listTmpl, "base", view)
 }
 
 func (h *Handler) tracePage(w http.ResponseWriter, r *http.Request) {

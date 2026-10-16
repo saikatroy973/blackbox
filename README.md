@@ -50,7 +50,9 @@ Every run lands as a trace in the database. Real providers work too:
 
 Open <http://localhost:8080/ui/> for the dashboard: trace list with filters,
 waterfall span view, and a payload inspector for every LLM call and tool call.
-A JSON API is available at `/v1/traces` and `/v1/traces/{id}`.
+The trace list updates live over server-sent events as spans arrive
+(`curl -N localhost:8080/v1/events`). A JSON API is available at
+`/v1/traces` and `/v1/traces/{id}`.
 
 The **Evals** tab shows every suite run with pass-rate trend sparklines and
 per-case results linked back to their traces. Any two traces can be diffed
@@ -96,7 +98,17 @@ Every eval case is also recorded as a trace (tagged `blackbox.eval_suite` /
 `blackbox.eval_case`), so failing cases can be inspected and replayed in
 the dashboard.
 
-Docker:
+## Deploy
+
+SQLite is the default store (single file, zero dependencies). For
+production, point `-db` at a Postgres DSN and the schema migrates itself:
+
+```sh
+./bin/blackbox serve -db 'postgres://blackbox:blackbox@localhost:5432/blackbox?sslmode=disable'
+```
+
+`blackbox replay` and `blackbox eval run` accept the same `-db` flag. The
+repo ships a compose stack with Postgres healthchecks:
 
 ```sh
 docker compose -f deploy/docker-compose.yml up --build
@@ -111,7 +123,7 @@ docker compose -f deploy/docker-compose.yml up --build
 - [x] **M4** — Replay: cassette recorder, deterministic replay, divergence report
 - [x] **M5** — Eval harness: YAML suites, assertions, metrics, baseline regression gate
 - [x] **M6** — Eval UI: suite runs, trend charts, A/B trace diff
-- [ ] **M7** — Prod mode: Postgres, docker compose stack, live SSE streaming
+- [x] **M7** — Prod mode: Postgres, docker compose stack, live SSE streaming
 - [ ] **M8** — Polish: README GIF, seeded demo data, ingest benchmark, ADRs
 
 ## Layout
@@ -122,7 +134,7 @@ cmd/demoagent/     demo ReAct research agent
 pkg/span/          span model + agent semantic conventions (wire format)
 pkg/tracer/        public Go SDK for agent authors
 pkg/llm/           LLM provider interface: mock, OpenAI, Anthropic
-internal/          demoagent, ingest, store, replay, eval, api, ui
+internal/          demoagent, ingest, store, replay, eval, api, ui, events
 web/               embedded static assets
 evals/             golden eval datasets (YAML)
 deploy/            docker compose
@@ -155,6 +167,14 @@ make test        # go test -race ./...
 make check-fmt   # fail if gofmt needed
 make lint        # golangci-lint if installed, else go vet
 make ci          # check-fmt + vet + test + build
+```
+
+Postgres tests are skipped unless `TEST_POSTGRES_DSN` is set (CI sets it):
+
+```sh
+docker run -d --name bb-pg -e POSTGRES_USER=blackbox -e POSTGRES_PASSWORD=blackbox \
+  -e POSTGRES_DB=blackbox -p 5433:5432 postgres:17-alpine
+TEST_POSTGRES_DSN='postgres://blackbox:blackbox@localhost:5433/blackbox?sslmode=disable' go test ./internal/store/
 ```
 
 ## License

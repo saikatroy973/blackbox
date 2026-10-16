@@ -1,4 +1,18 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: blackbox
+      POSTGRES_PASSWORD: blackbox
+      POSTGRES_DB: blackbox
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackbox -d blackbox"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   blackbox:
     build:
       context: ..
@@ -6,9 +20,15 @@ services:
     image: blackbox:dev
     ports:
       - "8080:8080"
-    command: ["serve", "-addr", ":8080"]
-    volumes:
-      - blackbox-data:/data
+    command:
+      - serve
+      - -addr
+      - ":8080"
+      - -db
+      - postgres://blackbox:blackbox@postgres:5432/blackbox?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "/blackbox", "ping"]
       interval: 10s
@@ -17,4 +37,4 @@ services:
       start_period: 2s
 
 volumes:
-  blackbox-data:
+  postgres-data:
