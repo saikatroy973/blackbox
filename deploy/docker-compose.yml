@@ -1,0 +1,15 @@
+services:
+  blackbox:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: blackbox:dev
+    ports:
+      - "8080:8080"
+    command: ["serve", "-addr", ":8080"]
+    healthcheck:
+      test: ["CMD", "/blackbox", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2s

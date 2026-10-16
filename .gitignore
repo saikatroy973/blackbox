@@ -1,0 +1,16 @@
+# Binaries
+/bin/
+
+# Test artifacts
+*.out
+coverage.*
+
+# Local databases
+*.db
+*.db-wal
+*.db-shm
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
