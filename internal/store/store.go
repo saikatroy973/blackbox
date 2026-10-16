@@ -26,6 +26,8 @@ type TraceSummary struct {
 type TraceFilter struct {
 	Limit  int
 	Offset int
+	// Status filters by outcome: "" (all), "ok", or "error".
+	Status string
 }
 
 // Store persists spans.

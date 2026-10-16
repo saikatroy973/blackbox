@@ -183,6 +183,47 @@ func TestListTracesLimit(t *testing.T) {
 	}
 }
 
+func TestListTracesStatusFilter(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+
+	spans := sampleSpans()
+	second := spans[0]
+	second.TraceID = "trace-2"
+	second.SpanID = "root-2"
+	second.StartTime = second.StartTime.Add(time.Hour)
+	second.EndTime = second.EndTime.Add(time.Hour)
+	spans = append(spans, second)
+
+	if err := st.InsertSpans(ctx, spans); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	withErrors, err := st.ListTraces(ctx, store.TraceFilter{Status: "error"})
+	if err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(withErrors) != 1 || withErrors[0].TraceID != "trace-1" {
+		t.Fatalf("error filter = %+v, want only trace-1", withErrors)
+	}
+
+	okOnly, err := st.ListTraces(ctx, store.TraceFilter{Status: "ok"})
+	if err != nil {
+		t.Fatalf("list ok: %v", err)
+	}
+	if len(okOnly) != 1 || okOnly[0].TraceID != "trace-2" {
+		t.Fatalf("ok filter = %+v, want only trace-2", okOnly)
+	}
+
+	all, err := st.ListTraces(ctx, store.TraceFilter{})
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("all filter = %d traces, want 2", len(all))
+	}
+}
+
 func TestMigrationsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	ctx := context.Background()

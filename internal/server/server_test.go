@@ -22,7 +22,11 @@ func newTestHandler(t *testing.T) http.Handler {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return server.New(server.Config{Version: "test", Store: st})
+	h, err := server.New(server.Config{Version: "test", Store: st})
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
+	return h
 }
 
 func TestHealthz(t *testing.T) {
@@ -30,6 +34,22 @@ func TestHealthz(t *testing.T) {
 	newTestHandler(t).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestDashboardAndStaticRoutes(t *testing.T) {
+	h := newTestHandler(t)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ui/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ui status = %d, want 200", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/app.css", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("static status = %d, want 200", rec.Code)
 	}
 }
 
@@ -52,7 +72,10 @@ func TestIngestToStoreRoundtrip(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	h := server.New(server.Config{Version: "test", Store: st})
+	h, err := server.New(server.Config{Version: "test", Store: st})
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
 
 	now := time.Now()
 	s := span.Span{

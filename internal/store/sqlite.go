@@ -216,8 +216,13 @@ SELECT
 	SUM(CASE WHEN s.status = 'error' THEN 1 ELSE 0 END) AS error_count
 FROM spans s
 GROUP BY s.trace_id
+HAVING (
+	?1 = ''
+	OR (?1 = 'error' AND SUM(CASE WHEN s.status = 'error' THEN 1 ELSE 0 END) > 0)
+	OR (?1 = 'ok' AND SUM(CASE WHEN s.status = 'error' THEN 1 ELSE 0 END) = 0)
+)
 ORDER BY start_time DESC
-LIMIT ? OFFSET ?`
+LIMIT ?2 OFFSET ?3`
 
 // ListTraces returns trace summaries, most recent first.
 func (s *SQLite) ListTraces(ctx context.Context, f TraceFilter) ([]TraceSummary, error) {
@@ -225,7 +230,11 @@ func (s *SQLite) ListTraces(ctx context.Context, f TraceFilter) ([]TraceSummary,
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, listTracesSQL, limit, f.Offset)
+	status := f.Status
+	if status != "ok" && status != "error" {
+		status = ""
+	}
+	rows, err := s.db.QueryContext(ctx, listTracesSQL, status, limit, f.Offset)
 	if err != nil {
 		return nil, err
 	}

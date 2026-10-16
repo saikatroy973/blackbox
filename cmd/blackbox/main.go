@@ -80,9 +80,14 @@ func serve(args []string) error {
 		}
 	}()
 
+	handler, err := server.New(server.Config{Version: version, Store: st})
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           server.New(server.Config{Version: version, Store: st}),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

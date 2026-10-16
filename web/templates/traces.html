@@ -1,0 +1,45 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Traces</h1>
+  <form class="filters" method="get" action="/ui/">
+    <select name="status" onchange="this.form.submit()">
+      <option value="" {{if eq .Status ""}}selected{{end}}>all statuses</option>
+      <option value="ok" {{if eq .Status "ok"}}selected{{end}}>ok</option>
+      <option value="error" {{if eq .Status "error"}}selected{{end}}>error</option>
+    </select>
+    <select name="limit" onchange="this.form.submit()">
+      <option value="50" {{if eq .Limit 50}}selected{{end}}>50</option>
+      <option value="100" {{if eq .Limit 100}}selected{{end}}>100</option>
+      <option value="200" {{if eq .Limit 200}}selected{{end}}>200</option>
+    </select>
+  </form>
+</div>
+<div id="trace-panel" hx-get="/ui/traces?status={{.Status}}&amp;limit={{.Limit}}" hx-trigger="every 4s" hx-swap="innerHTML">
+  {{template "trace-table" .}}
+</div>
+{{end}}
+
+{{define "trace-table"}}
+{{if .Traces}}
+<table class="traces">
+  <thead>
+    <tr><th>name</th><th>trace</th><th>status</th><th>started</th><th>duration</th><th>spans</th><th>errors</th></tr>
+  </thead>
+  <tbody>
+  {{range .Traces}}
+    <tr class="clickable" onclick="location.href='/ui/traces/{{.TraceID}}'">
+      <td class="name">{{.RootName}}</td>
+      <td class="mono dim">{{.ShortID}}</td>
+      <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+      <td class="mono dim">{{formatTime .StartTime}}</td>
+      <td class="mono">{{formatDuration .Duration}}</td>
+      <td class="mono">{{.SpanCount}}</td>
+      <td class="mono">{{.ErrorCount}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="empty">No traces yet. Run <code>./bin/demoagent</code> to record one.</p>
+{{end}}
+{{end}}

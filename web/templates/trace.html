@@ -1,0 +1,29 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>{{.RootName}} <span class="badge badge-{{.Status}}">{{.Status}}</span></h1>
+  <div class="meta mono dim">
+    trace {{.ShortID}} · {{formatTime .StartTime}} · {{formatDuration .Duration}} · {{.SpanCount}} spans
+    {{if gt .TotalCost 0.0}}· {{formatCost .TotalCost}}{{end}}
+  </div>
+</div>
+<div class="trace-layout">
+  <section class="spans">
+    <div class="spans-head mono dim"><span>span</span><span>waterfall</span><span>dur</span></div>
+    {{range .Nodes}}
+    <div class="span-row" hx-get="/ui/traces/{{$.TraceID}}/spans/{{.Span.SpanID}}" hx-target="#inspector" hx-swap="innerHTML">
+      <div class="span-label" style="padding-left:{{.IndentPx}}px">
+        <span class="dot {{.KindClass}}"></span>
+        <span class="span-title">{{.Span.Name}}</span>
+        <span class="kind {{.KindClass}}">{{.Span.Kind}}</span>
+        {{if eq .Span.Status "error"}}<span class="badge badge-error">error</span>{{end}}
+      </div>
+      <div class="wf"><div class="wf-bar {{.KindClass}}" style="left:{{printf "%.3f" .LeftPct}}%;width:{{printf "%.3f" .WidthPct}}%"></div></div>
+      <div class="span-dur mono dim">{{formatDuration .Duration}}</div>
+    </div>
+    {{end}}
+  </section>
+  <aside id="inspector" class="inspector">
+    <p class="empty">Select a span to inspect its payloads.</p>
+  </aside>
+</div>
+{{end}}

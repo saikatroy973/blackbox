@@ -1,0 +1,27 @@
+{{define "span-panel"}}
+<div class="span-panel">
+  <h2>{{.Span.Name}}</h2>
+  <div class="meta">
+    <span class="kind {{.KindClass}}">{{.Span.Kind}}</span>
+    <span class="badge badge-{{.Span.Status}}">{{.Span.Status}}</span>
+  </div>
+  <table class="kv">
+    <tr><th>span</th><td class="mono">{{.Span.SpanID}}</td></tr>
+    <tr><th>trace</th><td class="mono">{{.Span.TraceID}}</td></tr>
+    {{if .Span.ParentSpanID}}<tr><th>parent</th><td class="mono">{{.Span.ParentSpanID}}</td></tr>{{end}}
+    <tr><th>started</th><td class="mono">{{formatTime .Span.StartTime}}</td></tr>
+    <tr><th>duration</th><td class="mono">{{formatDuration .Duration}}</td></tr>
+  </table>
+  {{if .Span.Error}}<div class="err mono">{{.Span.Error}}</div>{{end}}
+  {{if .Span.Attributes}}
+  <h3>attributes</h3>
+  <table class="kv attrs">
+    {{range $k, $v := .Span.Attributes}}
+    <tr><th>{{$k}}</th><td class="mono">{{$v}}</td></tr>
+    {{end}}
+  </table>
+  {{end}}
+  {{with .InputPretty}}<h3>input</h3><pre class="payload mono">{{.}}</pre>{{end}}
+  {{with .OutputPretty}}<h3>output</h3><pre class="payload mono">{{.}}</pre>{{end}}
+</div>
+{{end}}
